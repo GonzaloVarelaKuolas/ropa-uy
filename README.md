@@ -1,118 +1,113 @@
-Stage 1 scraper: design
+<div align="center">
 
-Date: 2026-11-07 Status: draft, awaiting review
+# 👕 ropa-uy
 
-Why this exists
+**Every men's clothing store in Uruguay, in one place, searchable by style.**
 
-ropa-uy collects men's clothing from Uruguayan online stores into one place where people can search and browse by style. The project's main goal is learning Kubernetes on a real system. The site should cost little enough that a small income from stores covers it.
+A learning-first project for running a real system on Kubernetes,
+from a home lab to the cloud.
 
-This spec covers only the scraper. It reads product catalogs from stores and stores them in PostgreSQL. It runs as a Kubernetes CronJob on a local k3s cluster.
+![Status](https://img.shields.io/badge/status-stage%201%20·%20design-orange)
+![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/kubernetes-k3s-326CE5?logo=kubernetes&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Azure](https://img.shields.io/badge/cloud-AKS-0078D4?logo=microsoftazure&logoColor=white)
+![AWS](https://img.shields.io/badge/images-S3-FF9900?logo=amazons3&logoColor=white)
 
-Scope
+</div>
 
-In scope:
+---
 
-A store list in stores.yaml.
-One platform reader: Shopify (for example kaboa.com.uy).
-A common product format, saved to PostgreSQL with upserts.
-Marking products that disappear from a store as removed (no delete).
-A run log per store.
-Polite HTTP: rate limit, retries, an identifying user agent, robots.txt.
-A command-line tool with a --dry-run mode that prints products without a database.
-A Dockerfile and Kubernetes files: CronJob, ConfigMap, Secret, and a single-instance PostgreSQL StatefulSet.
-Tests that never call real stores.
+## Why
 
-Out of scope (later stages): Ecwid, Tiendanube and WooCommerce readers; style tagging; queue and workers; search; downloading images; Helm; AKS.
+Uruguayan men who want a particular style, such as urban, punk or
+streetwear, usually find it only by already knowing the small brands on
+Instagram. The big chains are easy to find. The independent labels are not.
 
-Repository layout
+**ropa-uy** reads the online catalogs of local stores, from small brands to
+large chains, and brings them together so you can browse by style instead of
+by store.
+
+> **Project goals, in order**
+> 1. Learn Kubernetes properly by building something real.
+> 2. Keep it cheap enough that a small income from stores covers hosting.
+
+## How it works
+
+```mermaid
+flowchart LR
+    S[(stores.yaml)] --> C
+    subgraph K8s[Kubernetes cluster]
+        C[Scraper CronJob<br/>every 6h] -->|upsert| DB[(PostgreSQL)]
+        DB --> W[Web app]
+    end
+    C -.->|products.json| ST1[Shopify stores]
+    C -.-> ST2[Ecwid / Tiendanube /<br/>WooCommerce stores]
+    U[Users] --> W
+```
+
+- **One reader per platform, not per store.** Most stores run on a handful
+  of platforms, so adding a store is usually one line in `stores.yaml`.
+- **Polite by design.** Rate-limited, follows `robots.txt`, and identifies
+  itself with a contact URL.
+- **Nothing is deleted.** Products that leave a store are marked removed, and
+  only after a successful scrape.
+
+## Roadmap
+
+Each stage ends with a working site and adds new Kubernetes concepts.
+
+| Stage | What gets built | What you learn |
+|:-----:|-----------------|----------------|
+| **1** | Shopify scraper, PostgreSQL, simple web app on local **k3s** | Deployments, Services, CronJobs, ConfigMaps, Secrets, StatefulSets, PVCs |
+| **2** | Queue and parallel workers, more platforms, Ingress, Helm charts | Scaling, Ingress, packaging with Helm |
+| **3** | Style tagging, search engine, Prometheus + Grafana, Argo CD | Observability, GitOps |
+| **4** | Move to **Azure AKS** (free tier), product images on **AWS S3** | Managed Kubernetes, multi-cloud |
+
+**Current progress**
+
+- [x] Stage 1 scraper design ([spec](docs/superpowers/specs/2026-11-07-scraper-design.md))
+- [ ] Stage 1 implementation plan
+- [ ] Shopify scraper
+- [ ] k3s manifests (PostgreSQL + CronJob)
+- [ ] Web app
+
+## Repository layout
+
+```text
 ropa-uy/
-  services/scraper/
-    scraper/
-      __main__.py      CLI entry point
-      config.py        load and validate stores.yaml and env vars
-      models.py        Product, StoreConfig dataclasses
-      http.py          polite HTTP client
-      platforms/
-        __init__.py    platform name -> reader lookup
-        shopify.py
-      db.py            schema setup, upsert, mark removed, run log
-      schema.sql
-      run.py           orchestrates one run across stores
-    tests/
-      fixtures/        saved sample responses
-    stores.yaml
-    pyproject.toml
-    Dockerfile
-  deploy/
-    k3s/               plain YAML manifests for stage 1
-  docs/
-Store list
-yaml
-stores:
-  - slug: kaboa
-    name: Kaboa
-    url: https://www.kaboa.com.uy
-    platform: shopify
-    currency: UYU          # Shopify's products.json does not include currency
-    audience: unisex       # men | unisex | mixed
-    collections: []        # for mixed stores: scrape only these collections
+├── services/
+│   ├── scraper/        # Python scraper (stage 1)
+│   └── web/            # Web app (stage 1)
+├── deploy/
+│   └── k3s/            # Kubernetes manifests for the home lab
+└── docs/
+    └── superpowers/
+        └── specs/      # Design documents
+```
 
-Validation runs at startup: each slug must be unique and lowercase, the platform must have a reader, the URL must be https, and collections is required when audience is mixed. Invalid config stops the run before any request.
+## Tech stack
 
-Product format
-Field	Type	Notes
-store_slug	text	from config
-external_id	text	platform product id
-title	text	
-url	text	product page
-price	numeric(12,2)	lowest price among available variants, else lowest overall
-currency	char(3)	from config
-sizes	text[]	sizes with an available variant
-in_stock	bool	any variant available
-image_urls	text[]	URLs only, not downloaded
-vendor, product_type	text	as the store reports them
-tags	text[]	the store's own tags (used for style tagging later)
-raw	jsonb	the original product payload, for later reprocessing
+| Layer | Choice |
+|-------|--------|
+| Language | Python 3.12 (`httpx`, `psycopg` 3, `PyYAML`, `pytest`) |
+| Database | PostgreSQL |
+| Orchestration | k3s at home, then Azure Kubernetes Service |
+| Object storage | AWS S3 (stage 4) |
 
-Shopify reader. It reads {url}/products.json?limit=250&page=N (or {url}/collections/{handle}/products.json for each configured collection). It stops at the first empty page and stops after 100 pages as a safety limit. For sizes, it uses the option whose name matches talle|talla|size|tamaño (case-insensitive). If there is no such option, sizes is empty.
+## Getting started
 
-Database
+> 🚧 Code arrives with stage 1. Setup steps will be added here once the
+> scraper runs.
 
-schema.sql is applied at every start with CREATE TABLE IF NOT EXISTS, so it can run any number of times. Migrations with a proper tool come in a later stage.
+## For store owners
 
-products: the fields above, plus first_seen_at, last_seen_at and a nullable removed_at. UNIQUE (store_slug, external_id).
-scrape_runs: id, store_slug, started_at, finished_at, status (running, ok or failed), products_seen and error.
+ropa-uy reads only public catalog pages, sends each visitor straight to your
+own store to buy, and follows your `robots.txt`. If you want your store
+added, removed or corrected, please open an issue.
 
-Upsert. It inserts new products, updates existing ones, sets last_seen_at to the current run time, and clears removed_at (a product that comes back is live again).
+---
 
-Removal. Only after a successful run for a store, it marks that store's products with last_seen_at < run start and removed_at IS NULL as removed. A failed run marks nothing, so an outage doesn't make every product look gone.
-
-HTTP behaviour
-httpx client with a 20-second timeout.
-At most one request per second to each host (configurable).
-Retries on network errors, 429 and 5xx: 3 attempts, with exponential backoff starting at 2 seconds.
-User agent: ropa-uy-bot/0.1 (+<contact URL from env>).
-robots.txt is checked once per host with urllib.robotparser. Disallowed paths are skipped and logged. If robots.txt can't be read (404), crawling is allowed. Any other error stops scraping of that store for the run.
-Run behaviour
-python -m scraper run [--store SLUG] [--dry-run]
-Stores are scraped one at a time. A failing store is logged and recorded in scrape_runs, and the run moves on to the next store.
-Exit code is 0 if every store succeeded, 1 if any failed, so a Kubernetes Job shows the failure.
---dry-run skips the database and prints products as JSON lines. It's for development and learning.
-Logs go to stdout, one line per event, in a key=value style that kubectl logs shows well.
-
-Environment variables: DATABASE_URL (required unless dry run), STORES_FILE (default stores.yaml), CONTACT_URL, REQUESTS_PER_SECOND (default 1).
-
-Kubernetes (stage 1, k3s)
-Namespace ropa-uy.
-postgres: a StatefulSet with 1 replica and a 1Gi PVC (k3s local-path), a headless Service, and the password in a Secret.
-scraper: a CronJob every 6 hours with concurrencyPolicy: Forbid, backoffLimit: 1 and ttlSecondsAfterFinished of 1 day. stores.yaml comes from a ConfigMap, DATABASE_URL from a Secret. It runs as a non-root user with small resource requests and limits.
-The image is built locally and imported into k3s (k3s ctr images import). A registry comes later.
-Testing
-pytest. HTTP is mocked with httpx.MockTransport, so there are no extra dependencies and no real network calls.
-Shopify reader tests use saved sample responses: pagination, collections, size detection, price and stock rules, and an empty catalog.
-Config validation tests cover each rule above.
-HTTP client tests cover retry on 429/5xx, giving up after 3 attempts, robots.txt blocking, and the rate limit (with a fake clock).
-Database tests (upsert, return after removal, removal only after a successful run) run against a real PostgreSQL. They are skipped unless TEST_DATABASE_URL is set.
-Dependencies
-
-Runtime: httpx, PyYAML, psycopg[binary] (v3). Dev: pytest. Python 3.12.
+<div align="center">
+<sub>Built in 🇺🇾 Uruguay, one Kubernetes concept at a time.</sub>
+</div>
