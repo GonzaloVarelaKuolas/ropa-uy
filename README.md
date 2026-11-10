@@ -7,9 +7,9 @@
 A learning-first project for running a real system on Kubernetes,
 from a home lab to the cloud.
 
-![Status](https://img.shields.io/badge/status-stage%201%20·%20design-orange)
+![Status](https://img.shields.io/badge/status-stage%201%20·%20building-yellow)
 ![Python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/kubernetes-k3s-326CE5?logo=kubernetes&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/kubernetes-AKS-326CE5?logo=kubernetes&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 ![Azure](https://img.shields.io/badge/cloud-AKS-0078D4?logo=microsoftazure&logoColor=white)
 ![AWS](https://img.shields.io/badge/images-S3-FF9900?logo=amazons3&logoColor=white)
@@ -59,17 +59,18 @@ Each stage ends with a working site and adds new Kubernetes concepts.
 
 | Stage | What gets built | What you learn |
 |:-----:|-----------------|----------------|
-| **1** | Shopify scraper, PostgreSQL, simple web app on local **k3s** | Deployments, Services, CronJobs, ConfigMaps, Secrets, StatefulSets, PVCs |
+| **1** | Shopify scraper, PostgreSQL, simple web app on **Azure AKS** (free tier) | Deployments, Services, CronJobs, ConfigMaps, Secrets, StatefulSets, PVCs |
 | **2** | Queue and parallel workers, more platforms, Ingress, Helm charts | Scaling, Ingress, packaging with Helm |
 | **3** | Style tagging, search engine, Prometheus + Grafana, Argo CD | Observability, GitOps |
-| **4** | Move to **Azure AKS** (free tier), product images on **AWS S3** | Managed Kubernetes, multi-cloud |
+| **4** | Product images on **AWS S3**, infra as code | Multi-cloud, Terraform |
 
 **Current progress**
 
 - [x] Stage 1 scraper design ([spec](docs/superpowers/specs/2026-11-07-scraper-design.md))
-- [ ] Stage 1 implementation plan
-- [ ] Shopify scraper
-- [ ] k3s manifests (PostgreSQL + CronJob)
+- [x] Stage 1 implementation plan ([plan](docs/superpowers/plans/2026-11-08-stage1-scraper.md))
+- [x] Shopify scraper
+- [x] AKS manifests (PostgreSQL + CronJob)
+- [ ] AKS cluster and registry ([what to create](docs/infra.md))
 - [ ] Web app
 
 ## Repository layout
@@ -80,7 +81,7 @@ ropa-uy/
 │   ├── scraper/        # Python scraper (stage 1)
 │   └── web/            # Web app (stage 1)
 ├── deploy/
-│   └── k3s/            # Kubernetes manifests for the home lab
+│   └── aks/            # Kubernetes manifests (kubectl apply -k)
 └── docs/
     └── superpowers/
         └── specs/      # Design documents
@@ -92,13 +93,44 @@ ropa-uy/
 |-------|--------|
 | Language | Python 3.12 (`httpx`, `psycopg` 3, `PyYAML`, `pytest`) |
 | Database | PostgreSQL |
-| Orchestration | k3s at home, then Azure Kubernetes Service |
+| Orchestration | Azure Kubernetes Service (AKS) |
 | Object storage | AWS S3 (stage 4) |
 
 ## Getting started
 
-> 🚧 Code arrives with stage 1. Setup steps will be added here once the
-> scraper runs.
+### Run the scraper on your machine
+
+```bash
+cd services/scraper
+python -m venv .venv && .venv\Scripts\activate     # macOS/Linux: source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m pytest                                    # database tests run only with TEST_DATABASE_URL set
+python -m scraper run --dry-run --store kaboa       # prints products as JSON, saves nothing
+```
+
+### Deploy to AKS
+
+First create the infrastructure listed in [docs/infra.md](docs/infra.md), then:
+
+| # | Command | What it teaches |
+|---|---------|-----------------|
+| 1 | `az aks get-credentials -g rg-ropa-uy -n aks-ropa-uy` | Points `kubectl` at your cluster |
+| 2 | `az acr build -r <acr> -t ropa-uy-scraper:0.1.0 services/scraper` | Builds the image in Azure and stores it in your registry |
+| 3 | Replace `ACR_NAME` in `deploy/aks/kustomization.yaml` | Kustomize rewrites image names without editing every file |
+| 4 | `kubectl apply -f deploy/aks/namespace.yaml` | Namespaces group the project's objects |
+| 5 | `kubectl -n ropa-uy create secret generic ropa-uy-db --from-literal=postgres-password=<pick one> --from-literal=database-url=postgresql://postgres:<same>@postgres:5432/postgres` | Secrets keep passwords out of Git |
+| 6 | `kubectl -n ropa-uy create configmap scraper-stores --from-file=stores.yaml=services/scraper/stores.yaml` | ConfigMaps keep settings out of the image |
+| 7 | `kubectl apply -k deploy/aks` | Creates PostgreSQL (with an Azure Disk) and the CronJob |
+| 8 | `kubectl -n ropa-uy get pods -w` | Wait for `postgres-0` to be `Running` and `1/1` ready |
+| 9 | `kubectl -n ropa-uy create job --from=cronjob/scraper scraper-manual-1` | Runs the CronJob now instead of waiting 6 hours |
+| 10 | `kubectl -n ropa-uy logs -f job/scraper-manual-1` | Ends with `event=run_finished ok=1 failed=0` |
+| 11 | `kubectl -n ropa-uy exec -it postgres-0 -- psql -U postgres -c "select store_slug, count(*) from products group by 1;"` | Checks the data landed |
+
+In step 5, use only letters and digits in the password: it goes inside a URL, where characters like `@`, `:` or `/` break it.
+
+To change the store list later: re-run step 6 with `--dry-run=client -o yaml | kubectl apply -f -` appended.
+
+**Save money:** `az aks stop -g rg-ropa-uy -n aks-ropa-uy` when you're not using it, `az aks start` to resume.
 
 ## For store owners
 

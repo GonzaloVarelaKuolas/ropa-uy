@@ -1,0 +1,8 @@
+stores:
+  - slug: kaboa
+    name: Kaboa
+    url: https://www.kaboa.com.uy
+    platform: shopify
+    currency: UYU          # Shopify's products.json does not include currency
+    audience: unisex       # men | unisex | mixed
+    collections: []        # for mixed stores: scrape only these collections

@@ -1,0 +1,46 @@
+# Runs the scraper every 6 hours. stores.yaml and the database URL come from the cluster.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scraper
+  namespace: ropa-uy
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid          # never two scrapes at once
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 86400 # finished jobs are cleaned up after a day
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+          containers:
+            - name: scraper
+              image: ropa-uy-scraper:0.1.0   # rewritten to your ACR by kustomization.yaml
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: STORES_FILE
+                  value: /config/stores.yaml
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: ropa-uy-db
+                      key: database-url
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              volumeMounts:
+                - name: stores
+                  mountPath: /config
+                  readOnly: true
+          volumes:
+            - name: stores
+              configMap:
+                name: scraper-stores
