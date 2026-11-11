@@ -1,0 +1,11 @@
+# Apply everything with: kubectl apply -k deploy/aks
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - scraper-cronjob.yaml
+images:
+  - name: ropa-uy-scraper
+    newName: ACR_NAME.azurecr.io/ropa-uy-scraper   # replace ACR_NAME with your registry's name
+    newTag: 0.1.0

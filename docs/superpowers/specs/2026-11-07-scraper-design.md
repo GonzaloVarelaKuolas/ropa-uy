@@ -1,7 +1,7 @@
 # Stage 1 scraper: design
 
 Date: 2026-11-07
-Status: draft, awaiting review
+Status: approved (2026-11-08)
 
 ## Why this exists
 
@@ -11,8 +11,9 @@ learning Kubernetes on a real system. The site should cost little enough
 that a small income from stores covers it.
 
 This spec covers only the **scraper**. It reads product catalogs from stores
-and stores them in PostgreSQL. It runs as a Kubernetes CronJob on a local
-k3s cluster.
+and stores them in PostgreSQL. It runs as a Kubernetes CronJob on Azure Kubernetes Service (AKS, Free
+tier). (Changed on 2026-11-10 from a local k3d cluster: managed Kubernetes
+is what jobs ask for.)
 
 ## Scope
 
@@ -52,10 +53,12 @@ ropa-uy/
     tests/
       fixtures/        saved sample responses
     stores.yaml
-    pyproject.toml
+    requirements.txt       runtime dependencies (used by the Dockerfile)
+    requirements-dev.txt   adds pytest
+    pyproject.toml         pytest settings
     Dockerfile
   deploy/
-    k3s/               plain YAML manifests for stage 1
+    aks/               YAML manifests + kustomization.yaml for stage 1
   docs/
 ```
 
@@ -151,17 +154,20 @@ Environment variables: `DATABASE_URL` (required unless dry run),
 `STORES_FILE` (default `stores.yaml`), `CONTACT_URL`, `REQUESTS_PER_SECOND`
 (default 1).
 
-## Kubernetes (stage 1, k3s)
+## Kubernetes (stage 1, AKS)
 
 - Namespace `ropa-uy`.
-- `postgres`: a StatefulSet with 1 replica and a 1Gi PVC (k3s local-path), a
+- `postgres`: a StatefulSet with 1 replica and a 1Gi PVC (AKS default storage class, an Azure Disk), a
   headless Service, and the password in a Secret.
 - `scraper`: a CronJob every 6 hours with `concurrencyPolicy: Forbid`,
   `backoffLimit: 1` and `ttlSecondsAfterFinished` of 1 day. `stores.yaml`
   comes from a ConfigMap, `DATABASE_URL` from a Secret. It runs as a
   non-root user with small resource requests and limits.
-- The image is built locally and imported into k3s (`k3s ctr images import`).
-  A registry comes later.
+- The image is built with `az acr build` into Azure Container Registry, which
+  the cluster pulls from (AcrPull). `kustomization.yaml` sets the registry name.
+- The Azure resources are listed in `docs/infra.md`; Gonzalo creates them.
+- The database Secret is created with `kubectl create secret` and never
+  committed to Git.
 
 ## Testing
 

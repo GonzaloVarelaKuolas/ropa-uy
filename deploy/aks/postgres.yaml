@@ -1,0 +1,68 @@
+# PostgreSQL for stage 1: one replica with its own Azure Disk.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ropa-uy
+spec:
+  clusterIP: None            # headless: gives the pod a stable DNS name (postgres-0.postgres)
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ropa-uy
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ropa-uy-db
+                  key: postgres-password
+            - name: PGDATA                 # a subfolder: a new Azure Disk has a lost+found folder at its root
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        # no storageClassName: AKS's default class (Azure Disk, managed-csi) is used
+        resources:
+          requests:
+            storage: 1Gi

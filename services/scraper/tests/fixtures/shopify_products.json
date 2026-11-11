@@ -1,0 +1,40 @@
+{
+  "products": [
+    {
+      "id": 15291699429629,
+      "title": "Buzo Retro",
+      "handle": "buzo-retro",
+      "vendor": "Kaboa.ind",
+      "product_type": "",
+      "tags": ["new-in", "oversize"],
+      "options": [
+        {"name": "Talla", "position": 1, "values": ["S", "M", "L"]},
+        {"name": "Color", "position": 2, "values": ["Negro"]}
+      ],
+      "variants": [
+        {"id": 1, "option1": "S", "option2": "Negro", "price": "1290.00", "available": false},
+        {"id": 2, "option1": "M", "option2": "Negro", "price": "1590.00", "available": true},
+        {"id": 3, "option1": "L", "option2": "Negro", "price": "1490.00", "available": true}
+      ],
+      "images": [
+        {"src": "https://cdn.shopify.com/s/files/1/retro-front.jpg"},
+        {"src": "https://cdn.shopify.com/s/files/1/retro-back.jpg"}
+      ]
+    },
+    {
+      "id": 15292122726653,
+      "title": "Gorro Industrial",
+      "handle": "gorro-industrial",
+      "vendor": "Kaboa.ind",
+      "product_type": "Accesorios",
+      "tags": "invierno, negro",
+      "options": [
+        {"name": "Color", "position": 1, "values": ["Negro"]}
+      ],
+      "variants": [
+        {"id": 4, "option1": "Negro", "price": "690.00", "available": true}
+      ],
+      "images": []
+    }
+  ]
+}
