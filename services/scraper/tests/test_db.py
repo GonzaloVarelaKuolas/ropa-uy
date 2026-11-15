@@ -19,7 +19,7 @@ def conn():
 
     connection = db.connect(DATABASE_URL)
     db.apply_schema(connection)
-    connection.execute("TRUNCATE products, scrape_runs RESTART IDENTITY")
+    connection.execute("TRUNCATE products, scrape_runs RESTART IDENTITY CASCADE")
     connection.commit()
     yield connection
     connection.rollback()

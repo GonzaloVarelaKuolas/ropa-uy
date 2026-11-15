@@ -5,7 +5,11 @@ resources:
   - namespace.yaml
   - postgres.yaml
   - scraper-cronjob.yaml
+  - web.yaml
 images:
   - name: ropa-uy-scraper
     newName: ACR_NAME.azurecr.io/ropa-uy-scraper   # replace ACR_NAME with your registry's name
+    newTag: 0.1.0
+  - name: ropa-uy-web
+    newName: ACR_NAME.azurecr.io/ropa-uy-web             # same registry
     newTag: 0.1.0

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% from "_card.html" import card %}
+{% block title %}{{ p.title }} · {{ store_name(p.store_slug) }} · ropa-uy{% endblock %}
+{% block description %}{{ p.title }} de {{ store_name(p.store_slug) }}{% if p.price %}, {{ p.price | price }}{% endif %}. Miralo en ropa-uy y compralo en la tienda.{% endblock %}
+
+{% block content %}
+<nav class="crumbs" aria-label="Ruta">
+  <a href="/">Catálogo</a><span aria-hidden="true">/</span>
+  <a href="/?tienda={{ p.store_slug }}">{{ store_name(p.store_slug) }}</a><span aria-hidden="true">/</span>
+  <span>{{ p.title }}</span>
+</nav>
+
+<article class="product">
+  <div class="gallery{% if p.image_urls | length == 1 %} gallery-single{% endif %}" data-label="{{ store_name(p.store_slug) }}">
+    {% for url in p.image_urls[:8] %}
+    <div class="ph" data-label="{{ store_name(p.store_slug) }}">
+      <img src="{{ url | thumb(1100) }}" alt="{{ p.title }}{% if not loop.first %}, foto {{ loop.index }}{% endif %}" width="1100" height="1375" loading="{{ 'eager' if loop.first else 'lazy' }}" onerror="this.parentNode.classList.add('noimg');this.remove()">
+    </div>
+    {% else %}
+    <div class="ph noimg" data-label="{{ store_name(p.store_slug) }}"></div>
+    {% endfor %}
+  </div>
+
+  <div class="product-info">
+    <a class="card-store" href="/?tienda={{ p.store_slug }}">{{ store_name(p.store_slug) }}</a>
+    <h1>{{ p.title }}</h1>
+    <p class="product-price">{{ p.price | price }}{% if p.price %} <small>{{ p.currency }}</small>{% endif %}{% if p.was_price %} <s>{{ p.was_price | price }}</s> <span class="badge badge-sale badge-inline">-{{ p.discount }}%</span>{% endif %}</p>
+
+    {% if p.removed %}
+    <p class="notice notice-out">Ya no está disponible en la tienda.</p>
+    {% elif not p.in_stock %}
+    <p class="notice notice-out">Agotado por ahora.</p>
+    {% endif %}
+
+    {% if p.sizes and not p.removed %}
+    <div class="product-sizes">
+      <h2>Talles con stock</h2>
+      <ul>{% for s in p.sizes %}<li>{{ s }}</li>{% endfor %}</ul>
+    </div>
+    {% endif %}
+
+    {% if not p.removed %}
+    <a class="btn btn-big" href="{{ p.url | outbound }}" target="_blank" rel="noopener">Ver en {{ store_name(p.store_slug) }} <span aria-hidden="true">↗</span></a>
+    <p class="fineprint">Comprás directo en la tienda. Precio y stock revisados {{ p.last_seen_at | time_ago }}; confirmalos allá.</p>
+    {% else %}
+    <a class="btn btn-big" href="/?tienda={{ p.store_slug }}">Ver más de {{ store_name(p.store_slug) }}</a>
+    {% endif %}
+  </div>
+</article>
+
+{% if more %}
+<section class="more">
+  <div class="more-head">
+    <h2>Más de {{ store_name(p.store_slug) }}</h2>
+    <a href="/?tienda={{ p.store_slug }}">Ver todo →</a>
+  </div>
+  <ul class="grid grid-more">
+    {% for item in more %}{{ card(item) }}{% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

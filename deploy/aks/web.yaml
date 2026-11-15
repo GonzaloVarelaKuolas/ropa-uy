@@ -1,0 +1,72 @@
+# The website. Reads the same database the scraper writes to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: ropa-uy
+spec:
+  selector:
+    app: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: ropa-uy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: web
+          image: ropa-uy-web:0.1.0        # rewritten to your ACR by kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: STORES_FILE
+              value: /config/stores.yaml
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ropa-uy-db
+                  key: database-url
+          livenessProbe:                  # is the process alive? restart it if not
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          readinessProbe:                 # can it reach the database? no traffic until it can
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: stores
+              mountPath: /config
+              readOnly: true
+      volumes:
+        - name: stores
+          configMap:
+            name: scraper-stores

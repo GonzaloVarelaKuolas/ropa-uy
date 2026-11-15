@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "_card.html" import card %}
+{% block title %}{% if f.q %}“{{ f.q }}” · {% elif f.cat %}{{ categories[f.cat].label }} · {% endif %}ropa-uy · Ropa de hombre de Uruguay{% endblock %}
+
+{% block content %}
+{% if not f.is_filtered and page.page == 1 and not catalog_empty %}
+<section class="hero">
+  <h1>Toda la ropa de hombre<br>de Uruguay, <em>en un solo lugar.</em></h1>
+  <dl class="hero-stats">
+    <div><dt>prendas</dt><dd>{{ "{:,}".format(page.total).replace(",", ".") }}</dd></div>
+    <div><dt>tiendas</dt><dd>{{ store_stats | length }}</dd></div>
+    <div><dt>se actualiza</dt><dd>cada 6 h</dd></div>
+  </dl>
+</section>
+{% endif %}
+
+<nav class="cats" aria-label="Categorías">
+  <a href="{{ link(f, cat='') }}"{% if not f.cat %} aria-current="true"{% endif %}>Todo</a>
+  {% for slug, c in categories.items() %}
+  <a href="{{ link(f, cat=slug) }}"{% if f.cat == slug %} aria-current="true"{% endif %}>{{ c.label }}</a>
+  {% endfor %}
+</nav>
+
+<input type="checkbox" id="filtros-abiertos" class="sr filters-toggle">
+<div class="layout">
+  <aside class="filters" aria-label="Filtros">
+    <form id="filtros" action="/" method="get">
+      {% if f.q %}<input type="hidden" name="q" value="{{ f.q }}">{% endif %}
+      {% if f.cat %}<input type="hidden" name="cat" value="{{ f.cat }}">{% endif %}
+
+      <label class="switch">
+        <input type="checkbox" name="stock" value="1"{% if f.in_stock %} checked{% endif %}>
+        <span>Solo con stock</span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" name="oferta" value="1"{% if f.on_sale %} checked{% endif %}>
+        <span>En oferta</span>
+      </label>
+
+      {% if store_stats %}
+      <fieldset>
+        <legend>Tienda</legend>
+        {% for s in store_stats %}
+        <label class="check">
+          <input type="checkbox" name="tienda" value="{{ s.slug }}"{% if s.slug in f.stores %} checked{% endif %}>
+          <span>{{ store_name(s.slug) }}</span><small>{{ s.total }}</small>
+        </label>
+        {% endfor %}
+      </fieldset>
+      {% endif %}
+
+      {% if sizes %}
+      <fieldset>
+        <legend>Talle</legend>
+        <div class="size-grid">
+          {% for size in sizes %}
+          <label class="size">
+            <input type="checkbox" name="talle" value="{{ size }}"{% if size in f.sizes %} checked{% endif %}>
+            <span>{{ size }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      {% endif %}
+
+      <fieldset>
+        <legend>Precio (UYU)</legend>
+        <div class="price-range">
+          <label><span class="sr">Precio mínimo</span><input type="number" name="min" min="0" step="50" inputmode="numeric" placeholder="Mín." value="{{ f.min_price or '' }}"></label>
+          <span aria-hidden="true">—</span>
+          <label><span class="sr">Precio máximo</span><input type="number" name="max" min="0" step="50" inputmode="numeric" placeholder="Máx." value="{{ f.max_price or '' }}"></label>
+        </div>
+      </fieldset>
+
+      <div class="filters-actions">
+        <button type="submit" class="btn">Aplicar</button>
+        {% if f.is_filtered %}<a href="/" class="btn-link">Limpiar todo</a>{% endif %}
+      </div>
+    </form>
+  </aside>
+
+  <section class="results" aria-label="Prendas">
+    <div class="results-bar">
+      <p class="results-count" aria-live="polite">
+        <strong>{{ page.total | plural("prenda", "prendas") }}</strong>{% if f.q %} para “{{ f.q }}”{% endif %}
+      </p>
+      <label for="filtros-abiertos" class="btn btn-ghost filters-open">Filtros{% set n = (f.stores | length) + (f.sizes | length) + (1 if f.in_stock else 0) + (1 if f.on_sale else 0) + (1 if f.min_price or f.max_price else 0) %}{% if n %} · {{ n }}{% endif %}</label>
+      <label class="sort">
+        <span>Ordenar</span>
+        <select name="orden" form="filtros">
+          {% for key, (label, _) in sorts.items() %}
+          <option value="{{ key }}"{% if f.sort == key %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    {% if f.is_filtered %}
+    <ul class="chips" aria-label="Filtros activos">
+      {% if f.q %}<li><a href="{{ link(f, q='') }}" title="Quitar">“{{ f.q }}” <b>×</b></a></li>{% endif %}
+      {% if f.cat %}<li><a href="{{ link(f, cat='') }}" title="Quitar">{{ categories[f.cat].label }} <b>×</b></a></li>{% endif %}
+      {% for s in f.stores %}<li><a href="{{ link(f.without('stores', s)) }}" title="Quitar">{{ store_name(s) }} <b>×</b></a></li>{% endfor %}
+      {% for s in f.sizes %}<li><a href="{{ link(f.without('sizes', s)) }}" title="Quitar">Talle {{ s }} <b>×</b></a></li>{% endfor %}
+      {% if f.min_price or f.max_price %}<li><a href="{{ link(f, min_price=None, max_price=None) }}" title="Quitar">{% if f.min_price and f.max_price %}$ {{ f.min_price }} – $ {{ f.max_price }}{% elif f.min_price %}Desde $ {{ f.min_price }}{% else %}Hasta $ {{ f.max_price }}{% endif %} <b>×</b></a></li>{% endif %}
+      {% if f.in_stock %}<li><a href="{{ link(f, in_stock=False) }}" title="Quitar">Con stock <b>×</b></a></li>{% endif %}
+      {% if f.on_sale %}<li><a href="{{ link(f, on_sale=False) }}" title="Quitar">En oferta <b>×</b></a></li>{% endif %}
+    </ul>
+    {% endif %}
+
+    {% if page.items %}
+    <ul class="grid">
+      {% for p in page.items %}{{ card(p, eager=loop.index <= 4) }}{% endfor %}
+    </ul>
+
+    {% if page.pages > 1 %}
+    <nav class="pager" aria-label="Páginas">
+      {% if page.page > 1 %}<a class="btn btn-ghost" rel="prev" href="{{ link(f, page=page.page - 1) }}">← Anterior</a>{% else %}<span></span>{% endif %}
+      <span class="pager-pos">Página {{ page.page }} de {{ page.pages }}</span>
+      {% if page.page < page.pages %}<a class="btn" rel="next" href="{{ link(f, page=page.page + 1) }}">Siguiente →</a>{% else %}<span></span>{% endif %}
+    </nav>
+    {% endif %}
+
+    {% elif catalog_empty %}
+    <div class="empty">
+      <h2>Todavía no hay prendas</h2>
+      <p>El catálogo se llena solo: leemos las tiendas cada 6 horas. Volvé en un rato.</p>
+    </div>
+    {% else %}
+    <div class="empty">
+      <h2>No encontramos prendas con esos filtros</h2>
+      <p>Probá con otra palabra, otro talle o un rango de precio más amplio.</p>
+      <a class="btn" href="/">Ver todo el catálogo</a>
+    </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
