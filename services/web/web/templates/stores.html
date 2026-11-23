@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Tiendas · ropa-uy{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>Tiendas</h1>
+  <p>Las tiendas uruguayas que leemos hoy. Vamos sumando más.</p>
+</section>
+
+{% if stats %}
+<ul class="store-list">
+  {% for s in stats %}
+  <li>
+    <a class="store-main" href="/?tienda={{ s.slug }}">
+      <span class="store-name">{{ store_name(s.slug) }}</span>
+      <span class="store-meta">{{ s.total | plural("prenda", "prendas") }} · {{ s.in_stock }} con stock · actualizado {{ s.updated_at | time_ago }}</span>
+    </a>
+    {% if s.url %}<a class="store-site" href="{{ s.url }}" target="_blank" rel="noopener">Sitio de la tienda ↗</a>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  <h2>Todavía no hay tiendas cargadas</h2>
+  <p>El catálogo se llena solo: leemos las tiendas cada 6 horas.</p>
+</div>
+{% endif %}
+{% endblock %}

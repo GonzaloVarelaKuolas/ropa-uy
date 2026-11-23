@@ -1,0 +1,20 @@
+{% macro card(p, eager=false) %}
+<li class="card{% if not p.in_stock %} is-out{% endif %}">
+  <a href="/p/{{ p.id }}">
+    <div class="ph" data-label="{{ store_name(p.store_slug) }}">
+      {% if p.image %}<img src="{{ p.image | thumb(600) }}" alt="" width="600" height="750" loading="{{ 'eager' if eager else 'lazy' }}" decoding="async" onerror="this.parentNode.classList.add('noimg');this.remove()">{% endif %}
+      {% if not p.in_stock %}<span class="badge badge-out">Agotado</span>
+      {% elif p.discount %}<span class="badge badge-sale">-{{ p.discount }}%</span>
+      {% elif p.is_new %}<span class="badge badge-new">Nuevo</span>{% endif %}
+    </div>
+    <div class="card-body">
+      <span class="card-store">{{ store_name(p.store_slug) }}</span>
+      <h3 class="card-title">{{ p.title }}</h3>
+      <div class="card-foot">
+        <span class="card-price">{{ p.price | price }}{% if p.was_price %} <s>{{ p.was_price | price }}</s>{% endif %}</span>
+        {% if p.sizes %}<span class="card-sizes" aria-label="Talles disponibles">{{ p.sizes[:6] | join(' ') }}{% if p.sizes | length > 6 %} +{% endif %}</span>{% endif %}
+      </div>
+    </div>
+  </a>
+</li>
+{% endmacro %}
